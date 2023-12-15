@@ -1,0 +1,37 @@
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  test_bom_action:
+    runs-on: ubuntu-latest
+
+    permissions: {}
+
+    name: Install bom and generate SBOM
+    steps:
+      - name: Install bom
+        uses: kubernetes-sigs/release-actions/setup-bom@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Generage SBOM
+        run: |
+          bom generate -o /tmp/kueue.spdx .
+          cd /tmp
+          tar zcf sbom.tar.gz *.spdx
+      - name: Generate SBOM hash
+        shell: bash
+        run: |
+          # sha256sum generates sha256 hash for sbom.
+          # base64 -w0 encodes to base64 and outputs on a single line.
+          # sha256sum /tmp/sbom.tar.gz ... | base64 -w0
+          echo "hashes=$(sha256sum /tmp/sbom.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - name: Upload SBOM
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            /tmp/sbom.tar.gz
